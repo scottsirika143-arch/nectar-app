@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { CSSProperties } from "react";
 import MediaModal from "./components/MediaModal";
 
@@ -16,10 +17,6 @@ interface Item {
   backdrop_path?: string | null;
   overview?: string;
   year?: string;
-}
-interface SeasonInfo {
-  season_number: number;
-  episode_count: number;
 }
 interface Genre {
   id: number;
@@ -197,6 +194,9 @@ function HeroCarousel({
 
   return (
     <div className="hero-carousel">
+      {/* Big Netflix Red 'N' Watermark pinned in the exact top-left corner */}
+      <div className="hero-watermark-n">N</div>
+
       <div
         className="hero-backdrop"
         style={{ backgroundImage: bgImage ? `url(${bgImage})` : undefined }}
@@ -458,6 +458,8 @@ function Browse({
 
 /* ---------- Page ---------- */
 export default function Home() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>("home");
   const [sort, setSort] = useState<Sort>("popular");
   const [genre, setGenre] = useState("");
@@ -465,6 +467,7 @@ export default function Home() {
   const [dq, setDq] = useState("");
   const [selected, setSelected] = useState<Item | null>(null);
   const [watchlist, setWatchlist] = useState<Item[]>([]);
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
     const saved = localStorage.getItem("nectar_watchlist");
@@ -476,6 +479,56 @@ export default function Home() {
       }
     }
   }, []);
+
+  // Sync modal state from URL parameters on load/navigation
+  useEffect(() => {
+    const id = searchParams.get("id");
+    const type = searchParams.get("type") as MediaType;
+    if (id) {
+      // If modal is triggered via URL, fetch basic metadata if not already selected
+      if (!selected || selected.id !== Number(id)) {
+        getJson(`/api/catalog?id=${id}&type=${type || "movie"}`)
+          .then((d) => {
+            if (d) {
+              setSelected({
+                id: d.id,
+                media_type: type || d.media_type || "movie",
+                title: d.title || d.name || "Untitled",
+                poster_path: d.poster_path || null,
+                backdrop_path: d.backdrop_path || null,
+                overview: d.overview || "",
+                year: (d.release_date || d.first_air_date || "").slice(0, 4),
+              });
+            }
+          })
+          .catch(() => {
+            // Fallback lightweight item if direct fetch fails
+            setSelected({
+              id: Number(id),
+              media_type: type || "movie",
+              title: "Streaming Title",
+              poster_path: null,
+            });
+          });
+      }
+    } else {
+      setSelected(null);
+    }
+  }, [searchParams]);
+
+  const handleOpenModal = (item: Item) => {
+    setSelected(item);
+    startTransition(() => {
+      router.push(`/?id=${item.id}&type=${item.media_type}`, { scroll: false });
+    });
+  };
+
+  const handleCloseModal = () => {
+    setSelected(null);
+    startTransition(() => {
+      router.push(`/`, { scroll: false });
+    });
+  };
 
   const toggleWatchlist = (item: Item) => {
     setWatchlist((prev) => {
@@ -554,7 +607,7 @@ export default function Home() {
           <InfiniteGrid
             key={dq}
             base={`/api/search?query=${encodeURIComponent(dq)}`}
-            onOpen={setSelected}
+            onOpen={handleOpenModal}
             emptyText="No results found."
           />
         </section>
@@ -568,7 +621,7 @@ export default function Home() {
           ) : (
             <div className="grid" style={{ ...gridStyle, marginTop: "20px" }}>
               {watchlist.map((item) => (
-                <PosterCard key={keyOf(item)} item={item} onOpen={setSelected} />
+                <PosterCard key={keyOf(item)} item={item} onOpen={handleOpenModal} />
               ))}
             </div>
           )}
@@ -576,7 +629,7 @@ export default function Home() {
       ) : tab === "home" ? (
         <>
           <HeroCarousel
-            onOpen={setSelected}
+            onOpen={handleOpenModal}
             watchlist={watchlist}
             onToggleWatchlist={toggleWatchlist}
           />
@@ -585,7 +638,7 @@ export default function Home() {
             <HomeRow
               key={row.key}
               row={row}
-              onOpen={setSelected}
+              onOpen={handleOpenModal}
               onExplore={() => go(row.tab, row.sort)}
             />
           ))}
@@ -597,13 +650,13 @@ export default function Home() {
           setSort={setSort}
           genre={genre}
           setGenre={setGenre}
-          onOpen={setSelected}
+          onOpen={handleOpenModal}
         />
       )}
 
       <MediaModal
         isOpen={!!selected}
-        onClose={() => setSelected(null)}
+        onClose={handleCloseModal}
         mediaItem={selected}
       />
     </main>
@@ -654,6 +707,13 @@ button { font-family: inherit; }
 .hero-carousel {
   position: relative; width: 100%; height: 560px; display: flex; align-items: flex-end;
   overflow: hidden; background: #000;
+}
+.hero-watermark-n {
+  position: absolute; top: 24px; left: 40px; z-index: 15;
+  font-size: 96px; font-weight: 900; color: #e50914;
+  font-family: sans-serif; line-height: 1; letter-spacing: -6px;
+  pointer-events: none; opacity: 0.95;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.9), 0 0 30px rgba(229, 9, 20, 0.6);
 }
 .hero-backdrop {
   position: absolute; inset: 0; background-size: cover; background-position: center;
