@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
+import Script from 'next/script';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
@@ -71,16 +72,17 @@ export default async function RootLayout({
         <link rel="preconnect" href="https://vidlink.pro" />
         <link rel="dns-prefetch" href="https://vidlink.pro" />
         <link rel="preconnect" href="https://image.tmdb.org" />
-
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1463604168961868"
-          crossOrigin="anonymous"
-        ></script>
       </head>
       <body className="bg-[#141414] text-white antialiased">
         {children}
         <Analytics />
+
+        {/* Adsterra Global Script (Social Bar) */}
+        <Script
+          id="adsterra-socialbar"
+          src="https://bancadeltempoidea.org/14/58808fa5506f81df159760063720bcd9"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
